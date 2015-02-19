@@ -1,5 +1,8 @@
 #!/bin/bash
-# avconv-build - download and build avconv x86_64 static with external libs
+# av-build - download and build audio/video command line tools
+#
+# Version 0.3.0 (2015-02-19)
+# Libav building successfully. Rename avconv-build -> av-build.
 #
 # Version 0.2.0 (2015-02-18)
 # All primary contribs added and building successfully.
@@ -7,9 +10,9 @@
 # Version 0.1.0 (2015-02-17)
 # Initial development.
 
-VERSION="avconv-build 0.2.0"
+VERSION="av-build 0.3.0"
 
-BASE_DIR="${HOME}/avconv-build"
+BASE_DIR="${HOME}/av-build"
 
 set -e
 set -u
@@ -28,7 +31,8 @@ mkdir -p ${CONTRIB_DIR}
 export PATH="${BUILD_DIR}/bin:${PATH}"
 MAKEJOBS=$(sysctl -n hw.ncpu)
 
-CONTRIB_URLS=('http://www.tortall.net/projects/yasm/releases/yasm-1.3.0.tar.gz' \
+CONTRIB_URLS=('http://pkgconfig.freedesktop.org/releases/pkg-config-0.28.tar.gz' \
+              'http://www.tortall.net/projects/yasm/releases/yasm-1.3.0.tar.gz' \
               'http://zlib.net/zlib-1.2.8.tar.gz' \
               'http://www.bzip.org/1.0.6/bzip2-1.0.6.tar.gz' \
               'http://downloads.sourceforge.net/project/lame/lame/3.99/lame-3.99.5.tar.gz' \
@@ -40,8 +44,8 @@ CONTRIB_URLS=('http://www.tortall.net/projects/yasm/releases/yasm-1.3.0.tar.gz' 
               'https://github.com/webmproject/libvpx/archive/v1.3.0.tar.gz' \
               'http://download.videolan.org/pub/videolan/x264/snapshots/last_x264.tar.bz2' \
               'http://www.cmake.org/files/v3.1/cmake-3.1.3.tar.gz' \
-              'https://bitbucket.org/multicoreware/x265/downloads/x265_1.5.tar.gz')
-#              'https://libav.org/releases/libav-11.2.tar.gz')
+              'https://bitbucket.org/multicoreware/x265/downloads/x265_1.5.tar.gz' \
+              'https://libav.org/releases/libav-11.2.tar.gz')
 
 # Contrib-specific
 for INDEX in "${!CONTRIB_URLS[@]}"; do
@@ -50,10 +54,10 @@ for INDEX in "${!CONTRIB_URLS[@]}"; do
     CONTRIB_FILES[INDEX]="${CONTRIB_URLS[INDEX]##*/}"
     case "${CONTRIB_URLS[INDEX]}" in
         *libvpx*)
-            CONTRIB_FILES[INDEX]=$(echo "${CONTRIB_FILES[INDEX]}" | sed -e 's/^v/libvpx-/') # Sanitize
+            CONTRIB_FILES[INDEX]=$(echo "${CONTRIB_FILES[INDEX]}" | sed -e 's/^v/libvpx-/')
             ;;
         *x264*)
-            CONTRIB_FILES[INDEX]=$(echo "${CONTRIB_FILES[INDEX]}" | sed -e 's/^last_x264/x264-snapshot/') # Sanitize
+            CONTRIB_FILES[INDEX]=$(echo "${CONTRIB_FILES[INDEX]}" | sed -e 's/^last_x264/x264-snapshot/')
             ;;
     esac
     CONTRIB_NAMES[INDEX]=$(echo -n "${CONTRIB_FILES[INDEX]}" | sed -E -e 's/\.[Tt][Aa][Rr]\.[A-Za-z0-9]+$//')
@@ -64,6 +68,11 @@ for INDEX in "${!CONTRIB_URLS[@]}"; do
     CONTRIB_COMMANDS[INDEX]="${CONTRIB_COMMANDS[INDEX]}tar xf ${DOWNLOAD_DIR}/${CONTRIB_FILES[INDEX]};"
     CONTRIB_COMMANDS[INDEX]="${CONTRIB_COMMANDS[INDEX]}cd ${CONTRIB_NAMES[INDEX]}*;"
     case "${CONTRIB_NAMES[INDEX]}" in
+        *pkg-config*)
+            CONTRIB_COMMANDS[INDEX]="${CONTRIB_COMMANDS[INDEX]}./configure --prefix=${BUILD_DIR} --with-internal-glib;"
+            CONTRIB_COMMANDS[INDEX]="${CONTRIB_COMMANDS[INDEX]}make -j ${MAKEJOBS} && make install;"
+            CONTRIB_COMMANDS[INDEX]="${CONTRIB_COMMANDS[INDEX]}export PKG_CONFIG_PATH=${BUILD_DIR}/lib/pkgconfig;"
+            ;;
         *yasm*)
             CONTRIB_COMMANDS[INDEX]="${CONTRIB_COMMANDS[INDEX]}./configure --prefix=${BUILD_DIR};"
             CONTRIB_COMMANDS[INDEX]="${CONTRIB_COMMANDS[INDEX]}make -j ${MAKEJOBS} && make install;"
@@ -75,7 +84,7 @@ for INDEX in "${!CONTRIB_URLS[@]}"; do
         *bzip2*)
             CONTRIB_COMMANDS[INDEX]="${CONTRIB_COMMANDS[INDEX]}make -j ${MAKEJOBS} && make install PREFIX=${BUILD_DIR};"
             ;;
-        *fdk-aac*|lame*|*ogg*|*opencore-amr*)
+        *fdk-aac*|*lame*|*ogg*|*opencore-amr*)
             CONTRIB_COMMANDS[INDEX]="${CONTRIB_COMMANDS[INDEX]}./configure --prefix=${BUILD_DIR} --disable-shared --enable-static;"
             CONTRIB_COMMANDS[INDEX]="${CONTRIB_COMMANDS[INDEX]}make -j ${MAKEJOBS} && make install;"
             ;;
@@ -104,16 +113,15 @@ for INDEX in "${!CONTRIB_URLS[@]}"; do
             CONTRIB_COMMANDS[INDEX]="${CONTRIB_COMMANDS[INDEX]}cmake -DCMAKE_INSTALL_PREFIX:PATH=${BUILD_DIR} -DENABLE_SHARED=OFF .;"
             CONTRIB_COMMANDS[INDEX]="${CONTRIB_COMMANDS[INDEX]}make -j ${MAKEJOBS} && make install;"
             ;;
-#        *libav*)
-#            CONTRIB_COMMANDS[INDEX]="${CONTRIB_COMMANDS[INDEX]}./configure --prefix=${BUILD_DIR} --extra-cflags=-I${BUILD_DIR}/include --extra-ldflags=-L${BUILD_DIR}/lib --disable-debug --enable-pthreads --enable-gpl --enable-version3 --enable-nonfree --enable-bzlib --enable-zlib --enable-libmp3lame --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libfdk-aac --enable-libvorbis --enable-libvpx --enable-libx264 --enable-libx265;"
-#            #CONTRIB_COMMANDS[INDEX]="${CONTRIB_COMMANDS[INDEX]}CFLAGS=-I${BUILD_DIR}/include CXXFLAGS=-I${BUILD_DIR}/include,-stdlib=libc++ LDFLAGS=-L${BUILD_DIR}/lib,-stdlib=libc++ PKG_CONFIG='pkg-config --static' ./configure --prefix=${BUILD_DIR} --disable-debug --enable-pthreads --enable-gpl --enable-version3 --enable-nonfree --enable-bzlib --enable-zlib --enable-libmp3lame --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libfdk-aac --enable-libvorbis --enable-libvpx;"
-#            CONTRIB_COMMANDS[INDEX]="${CONTRIB_COMMANDS[INDEX]}make -j ${MAKEJOBS} && make install;"
-#            ;;
+        *libav*)
+            CONTRIB_COMMANDS[INDEX]="${CONTRIB_COMMANDS[INDEX]}./configure --prefix=${BUILD_DIR} --extra-cflags='-I${BUILD_DIR}/include' --extra-ldflags='-L${BUILD_DIR}/lib' --pkg-config-flags='--static' --disable-debug --enable-gpl --enable-version3 --enable-nonfree --enable-bzlib --enable-zlib --enable-libmp3lame --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libfdk-aac --enable-libvorbis --enable-libvpx --enable-libx264 --enable-libx265;"
+            CONTRIB_COMMANDS[INDEX]="${CONTRIB_COMMANDS[INDEX]}make -j ${MAKEJOBS} && make install;"
+            ;;
     esac
 done
 
 # Fetch contribs
-echo "Fetching contribs..."
+echo -n "Fetching contribs..."
 cd ${DOWNLOAD_DIR}
 ERROR_MSG=""
 for INDEX in "${!CONTRIB_URLS[@]}"; do
@@ -122,6 +130,7 @@ for INDEX in "${!CONTRIB_URLS[@]}"; do
     fi
 done
 if [[ "${ERROR_MSG}" != "" ]]; then echo -en "${ERROR_MSG}" >&2; exit 1; fi
+echo " done."
 
 # Build contribs
 echo "Building..."
@@ -144,8 +153,14 @@ for INDEX in "${!CONTRIB_NAMES[@]}"; do
     echo " (pass)"
 done
 
-AVCONV=$(which avconv)
-echo "avconv: ${AVCONV}"
-echo "Build complete."
+# Check for binary
+AVCONV=$(which avconv | head -n 1)
+if [[ "${AVCONV}" != "" ]]; then
+    echo "Build complete."
+else
+    echo "${SELF_NAME}: avconv not found" >&2
+    exit 1
+fi
 
+# All done
 exit 0
