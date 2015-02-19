@@ -1,6 +1,10 @@
 #!/bin/bash
 # av-build - download and build audio/video command line tools
 #
+# Version 0.5.0 (2015-02-19)
+# Add -d to redownload, -f to overwrite destination, and -s to append date.
+# Fix missing script name. Remove final binary check.
+#
 # Version 0.4.0 (2015-02-19)
 # Add basic arguments, number of parallel jobs fallback, and make sourcing compatible.
 #
@@ -15,35 +19,65 @@
 
 av-build() {
 
-    VERSION="av-build 0.4.0"
+    # Internal vars
+    VERSION="av-build 0.5.0"
+    SELF="${BASH_SOURCE[0]}"
+    SELF_NAME=$(basename "${SELF}")
+    DATETIME=$(date +%Y-%m-%d-%H%M%S)
     HELP="\
 usage: $SELF_NAME [-hv]
-       $SELF_NAME [destination]
+       $SELF_NAME [-dfs] [directory]
 where:
    -h  display this help text
-   -v  display version information"
+   -v  display version information
+   -d  force redownload existing source files
+   -f  force overwrite existing directory
+   -s  append date/time stamp to directory"
 
     # Arguments
+    DOWNLOAD=false
+    FORCE=false
+    STAMP=false
     OPTIND=1
-    while getopts ":hv" OPT; do
+    while getopts ":hvdfs" OPT; do
         case "${OPT}" in
         h)
             # Print help and exit
-            echo -e "$HELP"
+            echo -e "${HELP}"
             return 0
             ;;
         v)
             # Print version and exit
-            echo "$VERSION"
+            echo "${VERSION}"
             return 0
+            ;;
+        d)
+            # Force redownload existing source files
+            DOWNLOAD=true
+            ;;
+        f)
+            # Force overwrite existing build directory
+            FORCE=true
+            ;;
+        s)
+            # Append date to build directory
+            STAMP=true
+            ;;
+        \?)
+            # Invalid option specified
+            echo "${SELF_NAME}: invalid option: -${OPTARG}" >&2
+            echo -e "${HELP}"
+            return 1
+            ;;
+        :)
+            # Option without required argument
+            echo "${SELF_NAME}: option -${OPTARG} requires a value" >&2
+            echo -e "${HELP}"
+            return 1
             ;;
         esac
     done
     shift $(($OPTIND - 1))
-
-    # Internal vars
-    SELF="${BASH_SOURCE[0]}"
-    SELF_NAME=$(basename "${SELF}")
 
     # Base directory
     BASE_DIR=""
@@ -52,7 +86,13 @@ where:
     else
         BASE_DIR="av-build"
     fi
-    if ! mkdir -p "${BASE_DIR}" >/dev/null 2>&1; then
+    if [[ ${STAMP} == true ]]; then
+        BASE_DIR="${BASE_DIR}_${DATETIME}"
+    fi
+    if [[ ${FORCE} != true ]] && [[ -e ${BASE_DIR} ]]; then
+        echo "${SELF_NAME}: directory exists: ${BASE_DIR}" >&2
+        return 1
+    elif ! mkdir -p "${BASE_DIR}" >/dev/null 2>&1; then
         echo "${SELF_NAME}: unable to create directory: ${BASE_DIR}" >&2
         return 1
     fi
@@ -61,16 +101,17 @@ where:
     echo " done."
 
     # Set up environment
-    DATETIME=$(date +%Y-%m-%d-%H%M%S)
     DOWNLOAD_DIR="${BASE_DIR}/download"
     BUILD_DIR="${BASE_DIR}/build"
     CONTRIB_DIR="${BUILD_DIR}/contrib"
+    if [[ ${FORCE} == true ]] && [[ -e ${BUILD_DIR} ]]; then
+        rm -rf ${BUILD_DIR}
+    fi
     mkdir -p ${DOWNLOAD_DIR}
     mkdir -p ${BUILD_DIR}
     mkdir -p ${CONTRIB_DIR}
     export PATH="${BUILD_DIR}/bin:${PATH}"
-    MAKEJOBS=""
-    if ! MAKEJOBS=$(sysctl -n hw.ncpu); then
+    if ! MAKEJOBS=$(sysctl -n hw.ncpu 2>/dev/null); then
         MAKEJOBS="4"
     fi
 
@@ -169,8 +210,10 @@ where:
     cd ${DOWNLOAD_DIR}
     ERROR_MSG=""
     for INDEX in "${!CONTRIB_URLS[@]}"; do
-        if ! ([[ -e "${CONTRIB_FILES[INDEX]}" ]] || curl -Ls "${CONTRIB_URLS[INDEX]}" -o "${CONTRIB_FILES[INDEX]}" 2>/dev/null); then
-            ERROR_MSG="${ERROR_MSG}${SELF_NAME}: unable to download contrib: ${CONTRIB_URLS[INDEX]}\n"
+        if [[ ${DOWNLOAD} == true ]] || [[ ! -e "${CONTRIB_FILES[INDEX]}" ]]; then
+            if ! curl -Ls "${CONTRIB_URLS[INDEX]}" -o "${CONTRIB_FILES[INDEX]}" 2>/dev/null; then
+                ERROR_MSG="${ERROR_MSG}${SELF_NAME}: unable to download contrib: ${CONTRIB_URLS[INDEX]}\n"
+            fi
         fi
     done
     if [[ "${ERROR_MSG}" != "" ]]; then
@@ -201,16 +244,8 @@ where:
         echo " (pass)"
     done
 
-    # Check for binary
-    AVCONV=$(which avconv | head -n 1)
-    if [[ "${AVCONV}" != "" ]]; then
-        echo "Build complete."
-    else
-        echo "${SELF_NAME}: avconv not found" >&2
-        return 1
-    fi
-
     # All done
+    echo "Build complete."
     return 0
 
 }
