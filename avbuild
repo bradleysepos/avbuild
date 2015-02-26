@@ -1,6 +1,9 @@
 #!/bin/bash
 # av-build - download and build audio/video command line tools
 #
+# Version 0.7.0 (2015-02-26)
+# Add autotools, opus, and speex. Use xz compressed sources where possible.
+#
 # Version 0.6.0 (2015-02-24)
 # Add -l to list sources without building. Rename some vars. Refactor some commands.
 # Fix x264 to core 142.
@@ -23,16 +26,22 @@
 
 av-build() {
 
-    VERSION="av-build 0.6.0"
-    SOURCE_URLS=('http://pkgconfig.freedesktop.org/releases/pkg-config-0.28.tar.gz' \
+    VERSION="av-build 0.7.0"
+    SOURCE_URLS=('http://ftp.gnu.org/gnu/autoconf/autoconf-2.69.tar.xz' \
+                 'http://ftp.gnu.org/gnu/automake/automake-1.15.tar.xz' \
+                 'http://ftp.gnu.org/gnu/libtool/libtool-2.4.6.tar.xz' \
+                 'http://pkgconfig.freedesktop.org/releases/pkg-config-0.28.tar.gz' \
                  'http://www.cmake.org/files/v3.1/cmake-3.1.3.tar.gz' \
                  'http://www.tortall.net/projects/yasm/releases/yasm-1.3.0.tar.gz' \
                  'http://www.bzip.org/1.0.6/bzip2-1.0.6.tar.gz' \
                  'http://zlib.net/zlib-1.2.8.tar.gz' \
                  'http://downloads.xiph.org/releases/flac/flac-1.3.1.tar.xz' \
                  'http://downloads.sourceforge.net/project/lame/lame/3.99/lame-3.99.5.tar.gz' \
-                 'http://downloads.xiph.org/releases/ogg/libogg-1.3.2.tar.gz' \
-                 'http://downloads.xiph.org/releases/vorbis/libvorbis-1.3.4.tar.gz' \
+                 'http://downloads.xiph.org/releases/ogg/libogg-1.3.2.tar.xz' \
+                 'http://downloads.xiph.org/releases/opus/opus-1.1.tar.gz' \
+                 'https://ftp.mozilla.org/pub/mozilla.org/opus/opus-tools-0.1.9.tar.gz' \
+                 'http://downloads.xiph.org/releases/speex/speex-1.2rc1.tar.gz' \
+                 'http://downloads.xiph.org/releases/vorbis/libvorbis-1.3.4.tar.xz' \
                  'https://github.com/webmproject/libvpx/archive/v1.3.0.tar.gz' \
                  'http://downloads.sourceforge.net/project/opencore-amr/fdk-aac/fdk-aac-0.1.3.tar.gz' \
                  'http://downloads.sourceforge.net/project/opencore-amr/opencore-amr/opencore-amr-0.1.3.tar.gz' \
@@ -171,6 +180,10 @@ where:
             SOURCE_COMMANDS[INDEX]="${SOURCE_COMMANDS[INDEX]}cd ${SOURCE_DIR}/${SOURCE_NAMES[INDEX]};"
             SOURCE_COMMANDS[INDEX]="${SOURCE_COMMANDS[INDEX]}tar xf ${DOWNLOAD_DIR}/${SOURCE_FILES[INDEX]} --strip-components 1;"
             case "${SOURCE_NAMES[INDEX]}" in
+                *autoconf*|*automake*|*libtool*)
+                    SOURCE_COMMANDS[INDEX]="${SOURCE_COMMANDS[INDEX]}./configure --prefix=${BUILD_DIR};"
+                    SOURCE_COMMANDS[INDEX]="${SOURCE_COMMANDS[INDEX]}make -j ${MAKEJOBS} && make install;"
+                    ;;
                 *pkg-config*)
                     SOURCE_COMMANDS[INDEX]="${SOURCE_COMMANDS[INDEX]}./configure --prefix=${BUILD_DIR} --with-internal-glib;"
                     SOURCE_COMMANDS[INDEX]="${SOURCE_COMMANDS[INDEX]}make -j ${MAKEJOBS} && make install;"
@@ -192,15 +205,15 @@ where:
                     SOURCE_COMMANDS[INDEX]="${SOURCE_COMMANDS[INDEX]}make -j ${MAKEJOBS} && make install"
                     ;;
                 *flac*)
-                    SOURCE_COMMANDS[INDEX]="${SOURCE_COMMANDS[INDEX]}./configure --prefix=${BUILD_DIR} --disable-asm-optimizations --disable-xmms-plugin --with-ogg-libraries=${BUILD_DIR}/lib --with-ogg-includes=${BUILD_DIR}/include --disable-shared --enable-static;"
+                    SOURCE_COMMANDS[INDEX]="${SOURCE_COMMANDS[INDEX]}./configure --prefix=${BUILD_DIR} --disable-asm-optimizations --disable-xmms-plugin --with-ogg-includes=${BUILD_DIR}/include --with-ogg-libraries=${BUILD_DIR}/lib --disable-shared --enable-static;"
                     SOURCE_COMMANDS[INDEX]="${SOURCE_COMMANDS[INDEX]}make -j ${MAKEJOBS} && make install;"
                     ;;
-                *fdk-aac*|*lame*|*ogg*|*opencore-amr*)
+                *fdk-aac*|*lame*|*ogg*|*opencore-amr*|*opus*)
                     SOURCE_COMMANDS[INDEX]="${SOURCE_COMMANDS[INDEX]}./configure --prefix=${BUILD_DIR} --disable-shared --enable-static;"
                     SOURCE_COMMANDS[INDEX]="${SOURCE_COMMANDS[INDEX]}make -j ${MAKEJOBS} && make install;"
                     ;;
-                *vorbis*)
-                    SOURCE_COMMANDS[INDEX]="${SOURCE_COMMANDS[INDEX]}./configure --prefix=${BUILD_DIR} --with-ogg-libraries=${BUILD_DIR}/lib --with-ogg-includes=${BUILD_DIR}/include --disable-shared --enable-static;"
+                *speex*|*vorbis*)
+                    SOURCE_COMMANDS[INDEX]="${SOURCE_COMMANDS[INDEX]}./configure --prefix=${BUILD_DIR} --with-ogg-includes=${BUILD_DIR}/include --with-ogg-libraries=${BUILD_DIR}/lib --disable-shared --enable-static;"
                     SOURCE_COMMANDS[INDEX]="${SOURCE_COMMANDS[INDEX]}make -j ${MAKEJOBS} && make install;"
                     ;;
                 *vpx*)
@@ -217,7 +230,7 @@ where:
                     SOURCE_COMMANDS[INDEX]="${SOURCE_COMMANDS[INDEX]}make -j ${MAKEJOBS} && make install;"
                     ;;
                 *libav*)
-                    SOURCE_COMMANDS[INDEX]="${SOURCE_COMMANDS[INDEX]}./configure --prefix=${BUILD_DIR} --extra-cflags='-I${BUILD_DIR}/include' --extra-ldflags='-L${BUILD_DIR}/lib' --pkg-config-flags='--static' --disable-debug --enable-gpl --enable-version3 --enable-nonfree --enable-bzlib --enable-zlib --enable-libmp3lame --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libfdk-aac --enable-libvorbis --enable-libvpx --enable-libx264 --enable-libx265;"
+                    SOURCE_COMMANDS[INDEX]="${SOURCE_COMMANDS[INDEX]}./configure --prefix=${BUILD_DIR} --extra-cflags='-I${BUILD_DIR}/include' --extra-ldflags='-L${BUILD_DIR}/lib' --pkg-config-flags='--static' --disable-debug --enable-gpl --enable-version3 --enable-nonfree --enable-bzlib --enable-zlib --enable-libmp3lame --enable-libfdk-aac --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libopus --enable-libspeex --enable-libvorbis --enable-libvpx --enable-libx264 --enable-libx265;"
                     SOURCE_COMMANDS[INDEX]="${SOURCE_COMMANDS[INDEX]}make -j ${MAKEJOBS} && make install;"
                     ;;
             esac
