@@ -1,6 +1,10 @@
 #!/bin/bash
 # av-build - download and build audio/video command line tools
 #
+# Version 0.9.0 (2015-03-04)
+# Add -x to use latest repository version of x264, x265, and libav. Use https where
+# possible (unfortunately not everywhere). Use xz for libav release.
+#
 # Version 0.8.0 (2015-02-26)
 # Apply datetime stamp to build directory instead of base. Add directory empty check.
 # Re-download invalid source files. Improve usage and progress displays, error handling.
@@ -30,13 +34,13 @@
 
 av-build() {
 
-    VERSION="av-build 0.8.0"
-    SOURCE_URLS=('http://ftp.gnu.org/gnu/autoconf/autoconf-2.69.tar.xz' \
-                 'http://ftp.gnu.org/gnu/automake/automake-1.15.tar.xz' \
-                 'http://ftp.gnu.org/gnu/libtool/libtool-2.4.6.tar.xz' \
+    VERSION="av-build 0.9.0"
+    SOURCE_URLS=('https://ftp.gnu.org/gnu/autoconf/autoconf-2.69.tar.xz' \
+                 'https://ftp.gnu.org/gnu/automake/automake-1.15.tar.xz' \
+                 'https://ftp.gnu.org/gnu/libtool/libtool-2.4.6.tar.xz' \
                  'http://pkgconfig.freedesktop.org/releases/pkg-config-0.28.tar.gz' \
                  'http://www.cmake.org/files/v3.1/cmake-3.1.3.tar.gz' \
-                 'http://www.tortall.net/projects/yasm/releases/yasm-1.3.0.tar.gz' \
+                 'https://www.tortall.net/projects/yasm/releases/yasm-1.3.0.tar.gz' \
                  'http://www.bzip.org/1.0.6/bzip2-1.0.6.tar.gz' \
                  'http://zlib.net/zlib-1.2.8.tar.gz' \
                  'http://downloads.xiph.org/releases/flac/flac-1.3.1.tar.xz' \
@@ -48,11 +52,14 @@ av-build() {
                  'http://downloads.xiph.org/releases/vorbis/libvorbis-1.3.4.tar.xz' \
                  'https://github.com/webmproject/libvpx/archive/v1.3.0.tar.gz' \
                  'http://downloads.sourceforge.net/project/opencore-amr/fdk-aac/fdk-aac-0.1.3.tar.gz' \
-                 'http://downloads.sourceforge.net/project/opencore-amr/opencore-amr/opencore-amr-0.1.3.tar.gz' \
-                 'http://download.videolan.org/pub/videolan/x264/snapshots/x264-snapshot-20141218-2245.tar.bz2' \
-                 'https://bitbucket.org/multicoreware/x265/downloads/x265_1.5.tar.gz' \
-                 'https://libav.org/releases/libav-11.2.tar.gz')
+                 'http://downloads.sourceforge.net/project/opencore-amr/opencore-amr/opencore-amr-0.1.3.tar.gz')
+    X264_RELEASE='https://download.videolan.org/pub/videolan/x264/snapshots/x264-snapshot-20141218-2245.tar.bz2'
     X264_VERSION="142"
+    X264_LATEST='https://download.videolan.org/pub/videolan/x264/snapshots/last_x264.tar.bz2'
+    X265_RELEASE='https://bitbucket.org/multicoreware/x265/downloads/x265_1.5.tar.gz'
+    X265_LATEST='https://bitbucket.org/multicoreware/x265/get/default.tar.bz2'
+    LIBAV_RELEASE='https://libav.org/releases/libav-11.2.tar.xz'
+    LIBAV_LATEST='https://libav.org/releases/libav-snapshot.tar.bz2'
 
     # Internal vars
     SELF="${BASH_SOURCE[0]}"
@@ -61,22 +68,24 @@ av-build() {
     DATETIME=$(date +%Y-%m-%d-%H%M%S)
     HELP="\
 usage: $SELF_NAME [-hv]
-       $SELF_NAME [-dfls] [target_dir]
+       $SELF_NAME [-dflsx] [target_dir]
 where:
    -h  display this help text
    -v  display version information
    -d  force re-download existing source files
    -f  force overwrite existing directory
    -l  list sources (do not build)
-   -s  append datetime stamp to target_dir/build"
+   -s  append datetime stamp to target_dir/build
+   -x  use latest repository version of libav, x264, and x265"
 
     # Arguments
     DOWNLOAD=false
     FORCE=false
     LIST=false
     STAMP=false
+    LATEST=false
     OPTIND=1
-    while getopts ":hvdfls" OPT; do
+    while getopts ":hvdflsx" OPT; do
         case "${OPT}" in
         h)
             # Print help and exit
@@ -104,6 +113,10 @@ where:
             # Append datetime to build directory
             STAMP=true
             ;;
+        x)
+            # Use latest repository versions
+            LATEST=true
+            ;;
         \?)
             # Invalid option specified
             echo "${SELF_NAME}: invalid option: -${OPTARG}" >&2
@@ -120,6 +133,16 @@ where:
     done
     shift $(($OPTIND - 1))
 
+    if [[ ${LATEST} == true ]]; then
+        SOURCE_URLS+=("${X264_LATEST}")
+        SOURCE_URLS+=("${X265_LATEST}")
+        SOURCE_URLS+=("${LIBAV_LATEST}")
+    else
+        SOURCE_URLS+=("${X264_RELEASE}")
+        SOURCE_URLS+=("${X265_RELEASE}")
+        SOURCE_URLS+=("${LIBAV_RELEASE}")
+    fi
+
     # Source file and directory names
     for INDEX in "${!SOURCE_URLS[@]}"; do
         SOURCE_FILES[INDEX]="${SOURCE_URLS[INDEX]##*/}"
@@ -129,10 +152,17 @@ where:
                 ;;
             *x264*)
                 SOURCE_FILES[INDEX]=$(echo "${SOURCE_FILES[INDEX]}" | sed -E -e "s/snapshot-[0-9]+/core-${X264_VERSION}/")
+                SOURCE_FILES[INDEX]=$(echo "${SOURCE_FILES[INDEX]}" | sed -E -e "s/last_x264/x264-latest/")
+                ;;
+            *x265*)
+                SOURCE_FILES[INDEX]=$(echo "${SOURCE_FILES[INDEX]}" | sed -E -e "s/default/x265-latest/")
+                ;;
+            *libav*)
+                SOURCE_FILES[INDEX]=$(echo "${SOURCE_FILES[INDEX]}" | sed -E -e "s/snapshot/latest/")
                 ;;
         esac
         SOURCE_NAMES[INDEX]=$(echo -n "${SOURCE_FILES[INDEX]}" | sed -E -e 's/\.[Tt][Aa][Rr]\.[A-Za-z0-9]+$//')
-        SOURCE_HUMAN[INDEX]=$(echo -n "${SOURCE_NAMES[INDEX]}" | sed -E -e 's/[_-]([0-9]|core)/ \1/g')
+        SOURCE_HUMAN[INDEX]=$(echo -n "${SOURCE_NAMES[INDEX]}" | sed -E -e 's/[_-]([0-9]|core)/ \1/g' | sed -e 's/-latest/ latest/')
     done
 
     if [[ ${LIST} == true ]]; then
