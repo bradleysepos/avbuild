@@ -1,6 +1,9 @@
 #!/bin/bash
 # av-build - download and build audio/video command line tools
 #
+# Version 0.10.0 (2015-03-16)
+# Update libav release to 11.3.
+#
 # Version 0.9.0 (2015-03-04)
 # Add -x to use latest repository version of x264, x265, and libav. Use https where
 # possible (unfortunately not everywhere). Use xz for libav release.
@@ -34,7 +37,7 @@
 
 av-build() {
 
-    VERSION="av-build 0.9.0"
+    VERSION="av-build 0.10.0"
     SOURCE_URLS=('https://ftp.gnu.org/gnu/autoconf/autoconf-2.69.tar.xz' \
                  'https://ftp.gnu.org/gnu/automake/automake-1.15.tar.xz' \
                  'https://ftp.gnu.org/gnu/libtool/libtool-2.4.6.tar.xz' \
@@ -58,7 +61,7 @@ av-build() {
     X264_LATEST='https://download.videolan.org/pub/videolan/x264/snapshots/last_x264.tar.bz2'
     X265_RELEASE='https://bitbucket.org/multicoreware/x265/downloads/x265_1.5.tar.gz'
     X265_LATEST='https://bitbucket.org/multicoreware/x265/get/default.tar.bz2'
-    LIBAV_RELEASE='https://libav.org/releases/libav-11.2.tar.xz'
+    LIBAV_RELEASE='https://libav.org/releases/libav-11.3.tar.xz'
     LIBAV_LATEST='https://libav.org/releases/libav-snapshot.tar.bz2'
 
     # Internal vars
