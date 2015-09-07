@@ -1,5 +1,9 @@
 #!/bin/bash
-# av-build - download and build audio/video command line tools
+# avbuild - download and build audio/video command line tools
+#
+# Version 0.11.0 (2015-09-07)
+# Rename project to avbuild (previously av-build). Update to cmake 3.3.1,
+# fdk-aac 0.1.4, x264 core 148, x265 1.7, libav 11.4. Minor tweaks.
 #
 # Version 0.10.0 (2015-03-16)
 # Update libav release to 11.3.
@@ -35,14 +39,14 @@
 # Version 0.1.0 (2015-02-17)
 # Initial development.
 
-av-build() {
+avbuild() {
 
-    VERSION="av-build 0.10.0"
+    VERSION="avbuild 0.11.0"
     SOURCE_URLS=('https://ftp.gnu.org/gnu/autoconf/autoconf-2.69.tar.xz' \
                  'https://ftp.gnu.org/gnu/automake/automake-1.15.tar.xz' \
                  'https://ftp.gnu.org/gnu/libtool/libtool-2.4.6.tar.xz' \
                  'http://pkgconfig.freedesktop.org/releases/pkg-config-0.28.tar.gz' \
-                 'http://www.cmake.org/files/v3.1/cmake-3.1.3.tar.gz' \
+                 'http://www.cmake.org/files/v3.3/cmake-3.3.1.tar.gz' \
                  'https://www.tortall.net/projects/yasm/releases/yasm-1.3.0.tar.gz' \
                  'http://www.bzip.org/1.0.6/bzip2-1.0.6.tar.gz' \
                  'http://zlib.net/zlib-1.2.8.tar.gz' \
@@ -54,21 +58,21 @@ av-build() {
                  'http://downloads.xiph.org/releases/speex/speex-1.2rc1.tar.gz' \
                  'http://downloads.xiph.org/releases/vorbis/libvorbis-1.3.4.tar.xz' \
                  'https://github.com/webmproject/libvpx/archive/v1.3.0.tar.gz' \
-                 'http://downloads.sourceforge.net/project/opencore-amr/fdk-aac/fdk-aac-0.1.3.tar.gz' \
+                 'http://downloads.sourceforge.net/project/opencore-amr/fdk-aac/fdk-aac-0.1.4.tar.gz' \
                  'http://downloads.sourceforge.net/project/opencore-amr/opencore-amr/opencore-amr-0.1.3.tar.gz')
-    X264_RELEASE='https://download.videolan.org/pub/videolan/x264/snapshots/x264-snapshot-20141218-2245.tar.bz2'
-    X264_VERSION="142"
+    X264_RELEASE='https://download.videolan.org/pub/videolan/x264/snapshots/x264-snapshot-20150819-2245.tar.bz2'
+    X264_VERSION="148"
     X264_LATEST='https://download.videolan.org/pub/videolan/x264/snapshots/last_x264.tar.bz2'
-    X265_RELEASE='https://bitbucket.org/multicoreware/x265/downloads/x265_1.5.tar.gz'
+    X265_RELEASE='https://bitbucket.org/multicoreware/x265/downloads/x265_1.7.tar.gz'
     X265_LATEST='https://bitbucket.org/multicoreware/x265/get/default.tar.bz2'
-    LIBAV_RELEASE='https://libav.org/releases/libav-11.3.tar.xz'
+    LIBAV_RELEASE='https://libav.org/releases/libav-11.4.tar.xz'
     LIBAV_LATEST='https://libav.org/releases/libav-snapshot.tar.bz2'
 
     # Internal vars
     SELF="${BASH_SOURCE[0]}"
     SELF_NAME=$(basename "${SELF}")
     CREL=$(echo -e "\r"$(tput el))
-    DATETIME=$(date +%Y-%m-%d-%H%M%S)
+    DATETIME=$(date +%Y%m%d%H%M%S)
     HELP="\
 usage: $SELF_NAME [-hv]
        $SELF_NAME [-dflsx] [target_dir]
@@ -180,7 +184,7 @@ where:
         if [[ -n ${1} ]]; then
             BASE_DIR="${1}"
         else
-            BASE_DIR="av-build"
+            BASE_DIR="avbuild"
         fi
         if [[ ${FORCE} != true ]] && [[ -e ${BASE_DIR} ]] && [[ $(ls -A ${BASE_DIR} | grep -v '^\.') ]]; then
             echo "${SELF_NAME}: directory exists and is not empty: ${BASE_DIR}" >&2
@@ -193,9 +197,9 @@ where:
 
         # Set up environment
         DOWNLOAD_DIR="${BASE_DIR}/download"
-        BUILD_DIR="${BASE_DIR}/build"
+        BUILD_DIR="${BASE_DIR}/avbuild"
         if [[ ${STAMP} == true ]]; then
-            BUILD_DIR="${BUILD_DIR}_${DATETIME}"
+            BUILD_DIR="${BUILD_DIR}-${DATETIME}"
         fi
         SOURCE_DIR="${BUILD_DIR}/source"
         if [[ ${FORCE} == true ]] && [[ -e ${BUILD_DIR} ]]; then
@@ -320,4 +324,4 @@ where:
 
 }
 
-av-build "$@"
+avbuild "$@"
