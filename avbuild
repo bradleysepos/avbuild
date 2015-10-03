@@ -1,6 +1,11 @@
 #!/bin/bash
 # avbuild - download and build audio/video command line tools
 #
+# Version 0.12.0 (2015-10-03)
+# Use system autotools and cmake by default. Add -c to build cmake, -t to build
+# autoconf, automake, and libtool. Add logging. Update to cmake 3.3.2 and
+# libvpx 1.4.0. Fix typo in help. Quote variables in comparisons.
+#
 # Version 0.11.0 (2015-09-07)
 # Rename project to avbuild (previously av-build). Update to cmake 3.3.1,
 # fdk-aac 0.1.4, x264 core 148, x265 1.7, libav 11.4. Minor tweaks.
@@ -42,24 +47,24 @@
 avbuild() {
 
     VERSION="avbuild 0.11.0"
-    SOURCE_URLS=('https://ftp.gnu.org/gnu/autoconf/autoconf-2.69.tar.xz' \
-                 'https://ftp.gnu.org/gnu/automake/automake-1.15.tar.xz' \
-                 'https://ftp.gnu.org/gnu/libtool/libtool-2.4.6.tar.xz' \
-                 'http://pkgconfig.freedesktop.org/releases/pkg-config-0.28.tar.gz' \
-                 'http://www.cmake.org/files/v3.3/cmake-3.3.1.tar.gz' \
-                 'https://www.tortall.net/projects/yasm/releases/yasm-1.3.0.tar.gz' \
-                 'http://www.bzip.org/1.0.6/bzip2-1.0.6.tar.gz' \
-                 'http://zlib.net/zlib-1.2.8.tar.gz' \
-                 'http://downloads.xiph.org/releases/flac/flac-1.3.1.tar.xz' \
-                 'http://downloads.sourceforge.net/project/lame/lame/3.99/lame-3.99.5.tar.gz' \
-                 'http://downloads.xiph.org/releases/ogg/libogg-1.3.2.tar.xz' \
-                 'http://downloads.xiph.org/releases/opus/opus-1.1.tar.gz' \
-                 'https://ftp.mozilla.org/pub/mozilla.org/opus/opus-tools-0.1.9.tar.gz' \
-                 'http://downloads.xiph.org/releases/speex/speex-1.2rc1.tar.gz' \
-                 'http://downloads.xiph.org/releases/vorbis/libvorbis-1.3.4.tar.xz' \
-                 'https://github.com/webmproject/libvpx/archive/v1.3.0.tar.gz' \
-                 'http://downloads.sourceforge.net/project/opencore-amr/fdk-aac/fdk-aac-0.1.4.tar.gz' \
-                 'http://downloads.sourceforge.net/project/opencore-amr/opencore-amr/opencore-amr-0.1.3.tar.gz')
+    DOWNLOADS=('http://pkgconfig.freedesktop.org/releases/pkg-config-0.28.tar.gz' \
+               'https://www.tortall.net/projects/yasm/releases/yasm-1.3.0.tar.gz' \
+               'http://www.bzip.org/1.0.6/bzip2-1.0.6.tar.gz' \
+               'http://zlib.net/zlib-1.2.8.tar.gz' \
+               'http://downloads.xiph.org/releases/flac/flac-1.3.1.tar.xz' \
+               'http://downloads.sourceforge.net/project/lame/lame/3.99/lame-3.99.5.tar.gz' \
+               'http://downloads.xiph.org/releases/ogg/libogg-1.3.2.tar.xz' \
+               'http://downloads.xiph.org/releases/opus/opus-1.1.tar.gz' \
+               'https://ftp.mozilla.org/pub/mozilla.org/opus/opus-tools-0.1.9.tar.gz' \
+               'http://downloads.xiph.org/releases/speex/speex-1.2rc1.tar.gz' \
+               'http://downloads.xiph.org/releases/vorbis/libvorbis-1.3.4.tar.xz' \
+               'https://github.com/webmproject/libvpx/archive/v1.4.0.tar.gz' \
+               'http://downloads.sourceforge.net/project/opencore-amr/fdk-aac/fdk-aac-0.1.4.tar.gz' \
+               'http://downloads.sourceforge.net/project/opencore-amr/opencore-amr/opencore-amr-0.1.3.tar.gz')
+    CMAKE='http://www.cmake.org/files/v3.3/cmake-3.3.2.tar.gz'
+    AUTOTOOLS=('https://ftp.gnu.org/gnu/autoconf/autoconf-2.69.tar.xz' \
+               'https://ftp.gnu.org/gnu/automake/automake-1.15.tar.xz' \
+               'https://ftp.gnu.org/gnu/libtool/libtool-2.4.6.tar.xz')
     X264_RELEASE='https://download.videolan.org/pub/videolan/x264/snapshots/x264-snapshot-20150819-2245.tar.bz2'
     X264_VERSION="148"
     X264_LATEST='https://download.videolan.org/pub/videolan/x264/snapshots/last_x264.tar.bz2'
@@ -75,14 +80,16 @@ avbuild() {
     DATETIME=$(date +%Y%m%d%H%M%S)
     HELP="\
 usage: $SELF_NAME [-hv]
-       $SELF_NAME [-dflsx] [target_dir]
+       $SELF_NAME [-cdflstx] [target_dir]
 where:
    -h  display this help text
    -v  display version information
+   -c  build cmake
    -d  force re-download existing source files
    -f  force overwrite existing directory
    -l  list sources (do not build)
-   -s  append datetime stamp to target_dir/build
+   -s  append datetime stamp to target_dir/avbuild
+   -t  build autoconf, automake, and libtool
    -x  use latest repository version of libav, x264, and x265"
 
     # Arguments
@@ -92,7 +99,7 @@ where:
     STAMP=false
     LATEST=false
     OPTIND=1
-    while getopts ":hvdflsx" OPT; do
+    while getopts ":hvcdflstx" OPT; do
         case "${OPT}" in
         h)
             # Print help and exit
@@ -103,6 +110,10 @@ where:
             # Print version and exit
             echo "${VERSION}"
             return 0
+            ;;
+        c)
+            # Use local cmake
+            LOCAL_CMAKE=true
             ;;
         d)
             # Force re-download existing source files
@@ -119,6 +130,10 @@ where:
         s)
             # Append datetime to build directory
             STAMP=true
+            ;;
+        t)
+            # Use local autotools and pkg-config
+            LOCAL_AUTOTOOLS=true
             ;;
         x)
             # Use latest repository versions
@@ -140,7 +155,16 @@ where:
     done
     shift $(($OPTIND - 1))
 
-    if [[ ${LATEST} == true ]]; then
+    # Assemble download list
+    SOURCE_URLS=()
+    if [[ "${LOCAL_AUTOTOOLS}" == true ]]; then
+        SOURCE_URLS+=("${AUTOTOOLS[@]}")
+    fi
+    if [[ "${LOCAL_CMAKE}" == true ]]; then
+        SOURCE_URLS+=("${CMAKE}")
+    fi
+    SOURCE_URLS+=("${DOWNLOADS[@]}")
+    if [[ "${LATEST}" == true ]]; then
         SOURCE_URLS+=("${X264_LATEST}")
         SOURCE_URLS+=("${X265_LATEST}")
         SOURCE_URLS+=("${LIBAV_LATEST}")
@@ -172,7 +196,7 @@ where:
         SOURCE_HUMAN[INDEX]=$(echo -n "${SOURCE_NAMES[INDEX]}" | sed -E -e 's/[_-]([0-9]|core)/ \1/g' | sed -e 's/-latest/ latest/')
     done
 
-    if [[ ${LIST} == true ]]; then
+    if [[ "${LIST}" == true ]]; then
         # List sources
         IFS=$'\n' SOURCE_HUMAN_SORTED=$(sort <<<"${SOURCE_HUMAN[*]}")
         printf "%s\n" "${SOURCE_HUMAN_SORTED[@]}"
@@ -186,7 +210,7 @@ where:
         else
             BASE_DIR="avbuild"
         fi
-        if [[ ${FORCE} != true ]] && [[ -e ${BASE_DIR} ]] && [[ $(ls -A ${BASE_DIR} | grep -v '^\.') ]]; then
+        if [[ "${FORCE}" != true ]] && [[ -e ${BASE_DIR} ]] && [[ $(ls -A ${BASE_DIR} | grep -v '^\.') ]]; then
             echo "${SELF_NAME}: directory exists and is not empty: ${BASE_DIR}" >&2
             return 1
         elif ! mkdir -p "${BASE_DIR}" >/dev/null 2>&1; then
@@ -198,16 +222,18 @@ where:
         # Set up environment
         DOWNLOAD_DIR="${BASE_DIR}/download"
         BUILD_DIR="${BASE_DIR}/avbuild"
-        if [[ ${STAMP} == true ]]; then
+        if [[ "${STAMP}" == true ]]; then
             BUILD_DIR="${BUILD_DIR}-${DATETIME}"
         fi
         SOURCE_DIR="${BUILD_DIR}/source"
-        if [[ ${FORCE} == true ]] && [[ -e ${BUILD_DIR} ]]; then
+        LOG_DIR="${BUILD_DIR}/log"
+        if [[ "${FORCE}" == true ]] && [[ -e ${BUILD_DIR} ]]; then
             rm -rf ${BUILD_DIR}
         fi
         mkdir -p ${DOWNLOAD_DIR}
         mkdir -p ${BUILD_DIR}
         mkdir -p ${SOURCE_DIR}
+        mkdir -p ${LOG_DIR}
         export PATH="${BUILD_DIR}/bin:${PATH}"
         if ! MAKEJOBS=$(sysctl -n hw.ncpu 2>/dev/null); then
             MAKEJOBS="4"
@@ -271,7 +297,6 @@ where:
                     ;;
                 *libav*)
                     SOURCE_COMMANDS[INDEX]="${SOURCE_COMMANDS[INDEX]}./configure --prefix=${BUILD_DIR} --extra-cflags='-I${BUILD_DIR}/include' --extra-ldflags='-L${BUILD_DIR}/lib' --pkg-config-flags='--static' --disable-debug --enable-gpl --enable-version3 --enable-nonfree --enable-bzlib --enable-zlib --enable-libmp3lame --enable-libfdk-aac --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libopus --enable-libspeex --enable-libvorbis --enable-libvpx --enable-libx264 --enable-libx265;"
-                    SOURCE_COMMANDS[INDEX]="${SOURCE_COMMANDS[INDEX]}make -j ${MAKEJOBS} && make install;"
                     ;;
             esac
         done
@@ -282,7 +307,7 @@ where:
         for INDEX in "${!SOURCE_URLS[@]}"; do
             echo -en "${CREL}"
             printf "Downloading [%02i/%02i] %s" "$((${INDEX}+1))" "${#SOURCE_URLS[@]}" "${SOURCE_FILES[INDEX]}"
-            if [[ ${DOWNLOAD} == true ]] || [[ ! -e "${SOURCE_FILES[INDEX]}" ]] || ! tar -tf "${SOURCE_FILES[INDEX]}" >/dev/null 2>&1; then
+            if [[ "${DOWNLOAD}" == true ]] || [[ ! -e "${SOURCE_FILES[INDEX]}" ]] || ! tar -tf "${SOURCE_FILES[INDEX]}" >/dev/null 2>&1; then
                 if ! curl -Ls "${SOURCE_URLS[INDEX]}" -o "${SOURCE_FILES[INDEX]}" 2>/dev/null; then
                     ERRORS+=("${SOURCE_URLS[INDEX]}")
                     echo -en " [FAIL]\n"
@@ -304,7 +329,7 @@ where:
                 COMMANDS=()
                 IFS=';' read -a COMMANDS <<< "${SOURCE_COMMANDS[INDEX]}"
                 for C in "${COMMANDS[@]}"; do
-                    if eval $(echo -e "${C}") >/dev/null 2>&1; then
+                    if eval $(echo -e "${C}") >> "${LOG_DIR}/${SOURCE_NAMES[INDEX]}.log" 2>&1; then
                         continue
                     else
                         echo -en " [FAIL]\n"
