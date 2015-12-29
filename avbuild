@@ -1,6 +1,9 @@
 #!/bin/bash
 # avbuild - download and build audio/video command line tools
 #
+# Version 0.12.1 (2015-10-04)
+# Restore make command for libav.
+#
 # Version 0.12.0 (2015-10-03)
 # Use system autotools and cmake by default. Add -c to build cmake, -t to build
 # autoconf, automake, and libtool. Add logging. Update to cmake 3.3.2 and
@@ -297,6 +300,7 @@ where:
                     ;;
                 *libav*)
                     SOURCE_COMMANDS[INDEX]="${SOURCE_COMMANDS[INDEX]}./configure --prefix=${BUILD_DIR} --extra-cflags='-I${BUILD_DIR}/include' --extra-ldflags='-L${BUILD_DIR}/lib' --pkg-config-flags='--static' --disable-debug --enable-gpl --enable-version3 --enable-nonfree --enable-bzlib --enable-zlib --enable-libmp3lame --enable-libfdk-aac --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libopus --enable-libspeex --enable-libvorbis --enable-libvpx --enable-libx264 --enable-libx265;"
+                    SOURCE_COMMANDS[INDEX]="${SOURCE_COMMANDS[INDEX]}make -j ${MAKEJOBS} && make install;"
                     ;;
             esac
         done
