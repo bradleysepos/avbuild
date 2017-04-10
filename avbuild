@@ -1,6 +1,11 @@
 #!/bin/bash
 # avbuild - download and build audio/video command line tools
 #
+# Version 0.14.0 (2017-04-09)
+# Update to cmake 3.7.2, fdk-aac 0.1.5, libav 12.0, libflac 1.3.2,
+# libopus 1.1.4, libvorbis 1.3.5, libvpx 1.6.1, opencore amr 0.1.5,
+# pkg-config 0.29.2, x264 core 148 r2708 (86b7198), x265 2.3, zlib 1.2.11.
+#
 # Version 0.13.0 (2015-12-29)
 # Update to libopus 1.1.1, libvpx 1.5.0.
 #
@@ -52,31 +57,31 @@
 
 avbuild() {
 
-    VERSION="avbuild 0.13.0"
-    DOWNLOADS=('http://pkgconfig.freedesktop.org/releases/pkg-config-0.28.tar.gz' \
+    VERSION="avbuild 0.14.0"
+    DOWNLOADS=('https://pkgconfig.freedesktop.org/releases/pkg-config-0.29.2.tar.gz' \
                'https://www.tortall.net/projects/yasm/releases/yasm-1.3.0.tar.gz' \
                'http://www.bzip.org/1.0.6/bzip2-1.0.6.tar.gz' \
-               'http://zlib.net/zlib-1.2.8.tar.gz' \
-               'http://downloads.xiph.org/releases/flac/flac-1.3.1.tar.xz' \
+               'http://zlib.net/zlib-1.2.11.tar.gz' \
+               'http://downloads.xiph.org/releases/flac/flac-1.3.2.tar.xz' \
                'http://downloads.sourceforge.net/project/lame/lame/3.99/lame-3.99.5.tar.gz' \
                'http://downloads.xiph.org/releases/ogg/libogg-1.3.2.tar.xz' \
-               'http://downloads.xiph.org/releases/opus/opus-1.1.1.tar.gz' \
+               'http://downloads.xiph.org/releases/opus/opus-1.1.4.tar.gz' \
                'https://ftp.mozilla.org/pub/mozilla.org/opus/opus-tools-0.1.9.tar.gz' \
                'http://downloads.xiph.org/releases/speex/speex-1.2rc1.tar.gz' \
-               'http://downloads.xiph.org/releases/vorbis/libvorbis-1.3.4.tar.xz' \
-               'https://github.com/webmproject/libvpx/archive/v1.5.0.tar.gz' \
-               'http://downloads.sourceforge.net/project/opencore-amr/fdk-aac/fdk-aac-0.1.4.tar.gz' \
-               'http://downloads.sourceforge.net/project/opencore-amr/opencore-amr/opencore-amr-0.1.3.tar.gz')
-    CMAKE='http://www.cmake.org/files/v3.3/cmake-3.3.2.tar.gz'
+               'http://downloads.xiph.org/releases/vorbis/libvorbis-1.3.5.tar.xz' \
+               'https://storage.googleapis.com/downloads.webmproject.org/releases/webm/libvpx-1.6.1.tar.bz2' \
+               'http://downloads.sourceforge.net/project/opencore-amr/fdk-aac/fdk-aac-0.1.5.tar.gz' \
+               'http://downloads.sourceforge.net/project/opencore-amr/opencore-amr/opencore-amr-0.1.5.tar.gz')
+    CMAKE='http://www.cmake.org/files/v3.7/cmake-3.7.2.tar.gz'
     AUTOTOOLS=('https://ftp.gnu.org/gnu/autoconf/autoconf-2.69.tar.xz' \
                'https://ftp.gnu.org/gnu/automake/automake-1.15.tar.xz' \
                'https://ftp.gnu.org/gnu/libtool/libtool-2.4.6.tar.xz')
-    X264_RELEASE='https://download.videolan.org/pub/videolan/x264/snapshots/x264-snapshot-20150819-2245.tar.bz2'
+    X264_RELEASE='https://download.videolan.org/pub/videolan/x264/snapshots/x264-snapshot-20160920-2245-stable.tar.bz2'
     X264_VERSION="148"
     X264_LATEST='https://download.videolan.org/pub/videolan/x264/snapshots/last_x264.tar.bz2'
-    X265_RELEASE='https://bitbucket.org/multicoreware/x265/downloads/x265_1.7.tar.gz'
+    X265_RELEASE='https://bitbucket.org/multicoreware/x265/downloads/x265_2.3.tar.gz'
     X265_LATEST='https://bitbucket.org/multicoreware/x265/get/default.tar.bz2'
-    LIBAV_RELEASE='https://libav.org/releases/libav-11.4.tar.xz'
+    LIBAV_RELEASE='https://libav.org/releases/libav-12.tar.xz'
     LIBAV_LATEST='https://libav.org/releases/libav-snapshot.tar.bz2'
 
     # Internal vars
@@ -241,6 +246,10 @@ where:
         mkdir -p ${SOURCE_DIR}
         mkdir -p ${LOG_DIR}
         export PATH="${BUILD_DIR}/bin:${PATH}"
+        LIBAV_CONFIGURE_EXTRA=""
+        if [[ "$(uname)" == "Darwin" ]]; then
+            LIBAV_CONFIGURE_EXTRA="--enable-cross-compile --target-os=darwin"
+        fi
         if ! MAKEJOBS=$(sysctl -n hw.ncpu 2>/dev/null); then
             MAKEJOBS="4"
         fi
@@ -300,9 +309,11 @@ where:
                     SOURCE_COMMANDS[INDEX]="${SOURCE_COMMANDS[INDEX]}cd source;"
                     SOURCE_COMMANDS[INDEX]="${SOURCE_COMMANDS[INDEX]}cmake -DCMAKE_INSTALL_PREFIX:PATH=${BUILD_DIR} -DENABLE_SHARED=OFF .;"
                     SOURCE_COMMANDS[INDEX]="${SOURCE_COMMANDS[INDEX]}make -j ${MAKEJOBS} && make install;"
+                    # https://gitlab.kitware.com/brad.king/cmake/commit/53f17333f830d4f314bbe10ba32889bbcfbc3c46
+                    SOURCE_COMMANDS[INDEX]="${SOURCE_COMMANDS[INDEX]}sed -i.bak -e '/\-lto_library/s///g' ${BUILD_DIR}/lib/pkgconfig/x265.pc;"
                     ;;
                 *libav*)
-                    SOURCE_COMMANDS[INDEX]="${SOURCE_COMMANDS[INDEX]}./configure --prefix=${BUILD_DIR} --extra-cflags='-I${BUILD_DIR}/include' --extra-ldflags='-L${BUILD_DIR}/lib' --pkg-config-flags='--static' --disable-debug --enable-gpl --enable-version3 --enable-nonfree --enable-bzlib --enable-zlib --enable-libmp3lame --enable-libfdk-aac --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libopus --enable-libspeex --enable-libvorbis --enable-libvpx --enable-libx264 --enable-libx265;"
+                    SOURCE_COMMANDS[INDEX]="${SOURCE_COMMANDS[INDEX]}./configure --prefix=${BUILD_DIR} --arch=$(uname -m) --extra-cflags=-I${BUILD_DIR}/include --extra-ldflags=-L${BUILD_DIR}/lib --pkg-config-flags=--static --as=yasm --disable-debug --disable-shared --enable-static --enable-runtime-cpudetect --enable-gpl --enable-version3 --enable-nonfree --enable-pthreads --enable-bzlib --enable-zlib --enable-libmp3lame --enable-libfdk-aac --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libopus --enable-libspeex --enable-libvorbis --enable-libvpx --enable-libx264 --enable-libx265 ${LIBAV_CONFIGURE_EXTRA};"
                     SOURCE_COMMANDS[INDEX]="${SOURCE_COMMANDS[INDEX]}make -j ${MAKEJOBS} && make install;"
                     ;;
             esac
